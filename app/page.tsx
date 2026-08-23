@@ -1,69 +1,97 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+
+type Skill = { id: number; Name: string }
+type Role = { id: number; Name: string }
 
 export default function Home() {
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
+  const [selectedSkills, setSelectedSkills] = useState<number[]>([])
+  const [selectedRole, setSelectedRole] = useState<number | null>(null)
+  const [roadmap, setRoadmap] = useState<string[]>([])
+
+  useEffect(() => {
+    async function fetchData() {
+      const { data: skillsData } = await supabase.from('skills').select('*')
+      const { data: rolesData } = await supabase.from('roles').select('*')
+      if (skillsData) setSkills(skillsData)
+      if (rolesData) setRoles(rolesData)
+    }
+    fetchData()
+  }, [])
+
+  function toggleSkill(id: number) {
+    setSelectedSkills(prev =>
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    )
+  }
+
+  async function generateRoadmap() {
+    if (!selectedRole) return
+
+    const { data: requirements } = await supabase
+      .from('role_requirements')
+      .select('skill_id, step_order')
+      .eq('role_id', selectedRole)
+      .order('step_order', { ascending: true })
+
+    if (!requirements) return
+
+    const missingSkillIds = requirements
+      .filter(r => !selectedSkills.includes(r.skill_id))
+      .map(r => r.skill_id)
+
+    const missingSkillNames = missingSkillIds.map(id => {
+      const skill = skills.find(s => s.id === id)
+      return skill ? skill.Name : 'Unknown skill'
+    })
+
+    setRoadmap(missingSkillNames)
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main style={{ maxWidth: 600, margin: '40px auto', padding: 20, fontFamily: 'sans-serif' }}>
+      <h1>AI Career Mentor</h1>
+
+      <h2>1. Select the skills you already know</h2>
+      {skills.map(skill => (
+        <label key={skill.id} style={{ display: 'block', marginBottom: 6 }}>
+          <input
+            type="checkbox"
+            checked={selectedSkills.includes(skill.id)}
+            onChange={() => toggleSkill(skill.id)}
+          />
+          {' '}{skill.Name}
+        </label>
+      ))}
+
+      <h2>2. Select your target role</h2>
+      <select
+        value={selectedRole ?? ''}
+        onChange={e => setSelectedRole(Number(e.target.value))}
+      >
+        <option value="">-- Choose a role --</option>
+        {roles.map(role => (
+          <option key={role.id} value={role.id}>{role.Name}</option>
+        ))}
+      </select>
+
+      <br /><br />
+      <button onClick={generateRoadmap}>Generate Roadmap</button>
+
+      {roadmap.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <h2>Your Roadmap</h2>
+          <ol>
+            {roadmap.map((skillName, i) => (
+              <li key={i}>{skillName}</li>
+            ))}
+          </ol>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+      )}
+    </main>
+  )
 }
