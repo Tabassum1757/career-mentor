@@ -139,8 +139,9 @@ export default function Home() {
       </select>
 
       <br /><br />
-      <button onClick={generateRoadmap}>Generate Simple Roadmap</button>
-      {' '}
+      <button onClick={generateRoadmap} style={{ marginRight: 16 }}>
+        Generate Simple Roadmap
+      </button>
       <button onClick={generateAiRoadmap} disabled={loading}>
         {loading ? 'Generating with AI...' : 'Generate AI Roadmap'}
       </button>
