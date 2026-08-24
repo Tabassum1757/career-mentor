@@ -5,6 +5,12 @@ import { supabase } from '@/lib/supabase'
 
 type Skill = { id: number; Name: string }
 type Role = { id: number; Name: string }
+type Phase = {
+  phase_name: string
+  skills: string[]
+  reasoning: string
+  estimated_weeks: number
+}
 
 export default function Home() {
   const [skills, setSkills] = useState<Skill[]>([])
@@ -12,6 +18,9 @@ export default function Home() {
   const [selectedSkills, setSelectedSkills] = useState<number[]>([])
   const [selectedRole, setSelectedRole] = useState<number | null>(null)
   const [roadmap, setRoadmap] = useState<string[]>([])
+  const [aiPhases, setAiPhases] = useState<Phase[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -29,8 +38,8 @@ export default function Home() {
     )
   }
 
-  async function generateRoadmap() {
-    if (!selectedRole) return
+  async function getMissingSkills(): Promise<{ names: string[]; roleName: string }> {
+    if (!selectedRole) return { names: [], roleName: '' }
 
     const { data: requirements } = await supabase
       .from('role_requirements')
@@ -38,7 +47,7 @@ export default function Home() {
       .eq('role_id', selectedRole)
       .order('step_order', { ascending: true })
 
-    if (!requirements) return
+    if (!requirements) return { names: [], roleName: '' }
 
     const missingSkillIds = requirements
       .filter(r => !selectedSkills.includes(r.skill_id))
@@ -49,7 +58,57 @@ export default function Home() {
       return skill ? skill.Name : 'Unknown skill'
     })
 
-    setRoadmap(missingSkillNames)
+    const roleName = roles.find(r => r.id === selectedRole)?.Name || ''
+
+    return { names: missingSkillNames, roleName }
+  }
+
+  async function generateRoadmap() {
+    setAiPhases([])
+    setError('')
+    const { names } = await getMissingSkills()
+    setRoadmap(names)
+  }
+
+  async function generateAiRoadmap() {
+    setRoadmap([])
+    setError('')
+    setLoading(true)
+
+    const { names: missingSkills, roleName } = await getMissingSkills()
+
+    if (missingSkills.length === 0 || !roleName) {
+      setError('Please select a role and make sure you have missing skills to learn.')
+      setLoading(false)
+      return
+    }
+
+    const knownSkillNames = selectedSkills.map(id => {
+      const skill = skills.find(s => s.id === id)
+      return skill ? skill.Name : ''
+    }).filter(Boolean)
+
+    try {
+      const res = await fetch('/api/generate-roadmap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          knownSkills: knownSkillNames,
+          targetRole: roleName,
+          missingSkills,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Request failed')
+
+      const data = await res.json()
+      setAiPhases(data.phases || [])
+    } catch (err) {
+      setError('AI roadmap generation failed. Please try again.')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -80,7 +139,13 @@ export default function Home() {
       </select>
 
       <br /><br />
-      <button onClick={generateRoadmap}>Generate Roadmap</button>
+      <button onClick={generateRoadmap}>Generate Simple Roadmap</button>
+      {' '}
+      <button onClick={generateAiRoadmap} disabled={loading}>
+        {loading ? 'Generating with AI...' : 'Generate AI Roadmap'}
+      </button>
+
+      {error && <p style={{ color: 'red' }}>{error}</p>}
 
       {roadmap.length > 0 && (
         <div style={{ marginTop: 20 }}>
@@ -90,6 +155,21 @@ export default function Home() {
               <li key={i}>{skillName}</li>
             ))}
           </ol>
+        </div>
+      )}
+
+      {aiPhases.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <h2>Your AI-Generated Roadmap</h2>
+          {aiPhases.map((phase, i) => (
+            <div key={i} style={{ marginBottom: 16, padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+              <h3>{phase.phase_name} (~{phase.estimated_weeks} weeks)</h3>
+              <p style={{ color: '#555' }}>{phase.reasoning}</p>
+              <ul>
+                {phase.skills.map((s, j) => <li key={j}>{s}</li>)}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
     </main>
