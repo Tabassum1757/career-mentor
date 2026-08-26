@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
+import type { User } from '@supabase/supabase-js'
 
 type Skill = { id: number; Name: string }
 type Role = { id: number; Name: string }
@@ -21,6 +23,8 @@ export default function Home() {
   const [aiPhases, setAiPhases] = useState<Phase[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [user, setUser] = useState<User | null>(null)
+  const [saveMessage, setSaveMessage] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -30,12 +34,25 @@ export default function Home() {
       if (rolesData) setRoles(rolesData)
     }
     fetchData()
+
+    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => listener.subscription.unsubscribe()
   }, [])
 
   function toggleSkill(id: number) {
     setSelectedSkills(prev =>
       prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
     )
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    setUser(null)
   }
 
   async function getMissingSkills(): Promise<{ names: string[]; roleName: string }> {
@@ -66,6 +83,7 @@ export default function Home() {
   async function generateRoadmap() {
     setAiPhases([])
     setError('')
+    setSaveMessage('')
     const { names } = await getMissingSkills()
     setRoadmap(names)
   }
@@ -73,6 +91,7 @@ export default function Home() {
   async function generateAiRoadmap() {
     setRoadmap([])
     setError('')
+    setSaveMessage('')
     setLoading(true)
 
     const { names: missingSkills, roleName } = await getMissingSkills()
@@ -103,6 +122,18 @@ export default function Home() {
 
       const data = await res.json()
       setAiPhases(data.phases || [])
+
+      if (user && data.phases) {
+        const { error: saveError } = await supabase.from('user_roadmaps').insert({
+          user_id: user.id,
+          role_id: selectedRole,
+          known_skills: knownSkillNames.join(', '),
+          roadmap_data: data.phases,
+        })
+        if (!saveError) {
+          setSaveMessage('Roadmap saved to your account!')
+        }
+      }
     } catch (err) {
       setError('AI roadmap generation failed. Please try again.')
       console.error(err)
@@ -113,7 +144,18 @@ export default function Home() {
 
   return (
     <main style={{ maxWidth: 600, margin: '40px auto', padding: 20, fontFamily: 'sans-serif' }}>
-      <h1>AI Career Mentor</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h1>AI Career Mentor</h1>
+        {user ? (
+          <div>
+            <span style={{ marginRight: 12 }}>{user.email}</span>
+            <Link href="/dashboard" style={{ marginRight: 12 }}>My Roadmaps</Link>
+            <button onClick={handleLogout}>Log Out</button>
+          </div>
+        ) : (
+          <Link href="/login">Log In / Sign Up</Link>
+        )}
+      </div>
 
       <h2>1. Select the skills you already know</h2>
       {skills.map(skill => (
@@ -147,6 +189,7 @@ export default function Home() {
       </button>
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
+      {saveMessage && <p style={{ color: 'green' }}>{saveMessage}</p>}
 
       {roadmap.length > 0 && (
         <div style={{ marginTop: 20 }}>
