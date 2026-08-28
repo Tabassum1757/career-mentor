@@ -36,11 +36,9 @@ export default function Home() {
     fetchData()
 
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
-
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
-
     return () => listener.subscription.unsubscribe()
   }, [])
 
@@ -57,26 +55,20 @@ export default function Home() {
 
   async function getMissingSkills(): Promise<{ names: string[]; roleName: string }> {
     if (!selectedRole) return { names: [], roleName: '' }
-
     const { data: requirements } = await supabase
       .from('role_requirements')
       .select('skill_id, step_order')
       .eq('role_id', selectedRole)
       .order('step_order', { ascending: true })
-
     if (!requirements) return { names: [], roleName: '' }
-
     const missingSkillIds = requirements
       .filter(r => !selectedSkills.includes(r.skill_id))
       .map(r => r.skill_id)
-
     const missingSkillNames = missingSkillIds.map(id => {
       const skill = skills.find(s => s.id === id)
       return skill ? skill.Name : 'Unknown skill'
     })
-
     const roleName = roles.find(r => r.id === selectedRole)?.Name || ''
-
     return { names: missingSkillNames, roleName }
   }
 
@@ -93,7 +85,6 @@ export default function Home() {
     setError('')
     setSaveMessage('')
     setLoading(true)
-
     const { names: missingSkills, roleName } = await getMissingSkills()
 
     if (missingSkills.length === 0 || !roleName) {
@@ -111,15 +102,9 @@ export default function Home() {
       const res = await fetch('/api/generate-roadmap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          knownSkills: knownSkillNames,
-          targetRole: roleName,
-          missingSkills,
-        }),
+        body: JSON.stringify({ knownSkills: knownSkillNames, targetRole: roleName, missingSkills }),
       })
-
       if (!res.ok) throw new Error('Request failed')
-
       const data = await res.json()
       setAiPhases(data.phases || [])
 
@@ -130,9 +115,7 @@ export default function Home() {
           known_skills: knownSkillNames.join(', '),
           roadmap_data: data.phases,
         })
-        if (!saveError) {
-          setSaveMessage('Roadmap saved to your account!')
-        }
+        if (!saveError) setSaveMessage('Saved to your account.')
       }
     } catch (err) {
       setError('AI roadmap generation failed. Please try again.')
@@ -143,79 +126,187 @@ export default function Home() {
   }
 
   return (
-    <main style={{ maxWidth: 600, margin: '40px auto', padding: 20, fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1>AI Career Mentor</h1>
-        {user ? (
-          <div>
-            <span style={{ marginRight: 12 }}>{user.email}</span>
-            <Link href="/dashboard" style={{ marginRight: 12 }}>My Roadmaps</Link>
-            <button onClick={handleLogout}>Log Out</button>
-          </div>
-        ) : (
-          <Link href="/login">Log In / Sign Up</Link>
-        )}
-      </div>
-
-      <h2>1. Select the skills you already know</h2>
-      {skills.map(skill => (
-        <label key={skill.id} style={{ display: 'block', marginBottom: 6 }}>
-          <input
-            type="checkbox"
-            checked={selectedSkills.includes(skill.id)}
-            onChange={() => toggleSkill(skill.id)}
-          />
-          {' '}{skill.Name}
-        </label>
-      ))}
-
-      <h2>2. Select your target role</h2>
-      <select
-        value={selectedRole ?? ''}
-        onChange={e => setSelectedRole(Number(e.target.value))}
-      >
-        <option value="">-- Choose a role --</option>
-        {roles.map(role => (
-          <option key={role.id} value={role.id}>{role.Name}</option>
-        ))}
-      </select>
-
-      <br /><br />
-      <button onClick={generateRoadmap} style={{ marginRight: 16 }}>
-        Generate Simple Roadmap
-      </button>
-      <button onClick={generateAiRoadmap} disabled={loading}>
-        {loading ? 'Generating with AI...' : 'Generate AI Roadmap'}
-      </button>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {saveMessage && <p style={{ color: 'green' }}>{saveMessage}</p>}
-
-      {roadmap.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <h2>Your Roadmap</h2>
-          <ol>
-            {roadmap.map((skillName, i) => (
-              <li key={i}>{skillName}</li>
-            ))}
-          </ol>
-        </div>
-      )}
-
-      {aiPhases.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <h2>Your AI-Generated Roadmap</h2>
-          {aiPhases.map((phase, i) => (
-            <div key={i} style={{ marginBottom: 16, padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-              <h3>{phase.phase_name} (~{phase.estimated_weeks} weeks)</h3>
-              <p style={{ color: '#555' }}>{phase.reasoning}</p>
-              <ul>
-                {phase.skills.map((s, j) => <li key={j}>{s}</li>)}
-              </ul>
+    <main className="min-h-screen">
+      {/* Header */}
+      <header className="border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+          <h1 className="font-display text-2xl" style={{ color: 'var(--ink)' }}>
+            Trailhead
+          </h1>
+          {user ? (
+            <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--muted)' }}>
+              <span>{user.email}</span>
+              <Link href="/dashboard" className="underline hover:no-underline" style={{ color: 'var(--trail)' }}>
+                My Roadmaps
+              </Link>
+              <button onClick={handleLogout} className="underline hover:no-underline">
+                Log Out
+              </button>
             </div>
-          ))}
+          ) : (
+            <Link href="/login" className="text-sm underline hover:no-underline" style={{ color: 'var(--trail)' }}>
+              Log In / Sign Up
+            </Link>
+          )}
         </div>
-      )}
+      </header>
+
+      <div className="max-w-5xl mx-auto px-6 py-10 grid md:grid-cols-[280px_1fr] gap-10">
+
+        {/* Left column: skills + role */}
+        <div>
+          <p className="font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--waypoint)' }}>
+            Step 1
+          </p>
+          <h2 className="font-display text-xl mb-4" style={{ color: 'var(--ink)' }}>
+            What do you already know?
+          </h2>
+          <div className="flex flex-wrap gap-2 mb-8">
+            {skills.map(skill => {
+              const active = selectedSkills.includes(skill.id)
+              return (
+                <button
+                  key={skill.id}
+                  onClick={() => toggleSkill(skill.id)}
+                  className="px-3 py-1.5 rounded-full text-sm border transition-colors"
+                  style={
+                    active
+                      ? { backgroundColor: 'var(--trail)', borderColor: 'var(--trail)', color: 'white' }
+                      : { backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--ink)' }
+                  }
+                >
+                  {skill.Name}
+                </button>
+              )
+            })}
+          </div>
+
+          <p className="font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--waypoint)' }}>
+            Step 2
+          </p>
+          <h2 className="font-display text-xl mb-4" style={{ color: 'var(--ink)' }}>
+            Where are you headed?
+          </h2>
+          <select
+            value={selectedRole ?? ''}
+            onChange={e => setSelectedRole(Number(e.target.value))}
+            className="w-full px-3 py-2 rounded-lg border text-sm"
+            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}
+          >
+            <option value="">Choose a role</option>
+            {roles.map(role => (
+              <option key={role.id} value={role.id}>{role.Name}</option>
+            ))}
+          </select>
+
+          <div className="flex flex-col gap-3 mt-8">
+            <button
+              onClick={generateAiRoadmap}
+              disabled={loading}
+              className="px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-60"
+              style={{ backgroundColor: 'var(--trail)' }}
+            >
+              {loading ? 'Mapping your route…' : 'Generate AI Roadmap'}
+            </button>
+            <button
+              onClick={generateRoadmap}
+              className="px-4 py-2.5 rounded-lg text-sm font-medium border"
+              style={{ borderColor: 'var(--border)', color: 'var(--ink)' }}
+            >
+              Generate Simple Roadmap
+            </button>
+          </div>
+
+          {error && <p className="text-sm mt-4" style={{ color: '#B4432E' }}>{error}</p>}
+          {saveMessage && <p className="text-sm mt-4" style={{ color: 'var(--trail)' }}>{saveMessage}</p>}
+        </div>
+
+        {/* Right column: results */}
+        <div>
+          {roadmap.length > 0 && (
+            <div>
+              <h2 className="font-display text-xl mb-4" style={{ color: 'var(--ink)' }}>Your Roadmap</h2>
+              <ol className="space-y-2">
+                {roadmap.map((name, i) => (
+                  <li
+                    key={i}
+                    className="px-4 py-3 rounded-lg border flex items-center gap-3"
+                    style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+                  >
+                    <span className="font-mono text-xs" style={{ color: 'var(--waypoint)' }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span className="text-sm">{name}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {aiPhases.length > 0 && (
+            <div>
+              <h2 className="font-display text-xl mb-6" style={{ color: 'var(--ink)' }}>Your Trail</h2>
+              <div className="relative pl-10">
+                {/* vertical trail line */}
+                <div
+                  className="absolute left-[15px] top-2 bottom-2 w-[2px]"
+                  style={{ backgroundColor: 'var(--border)' }}
+                />
+                <div className="space-y-8">
+                  {aiPhases.map((phase, i) => (
+                    <div key={i} className="relative">
+                      {/* waypoint circle */}
+                      <div
+                        className="absolute -left-10 top-0 w-8 h-8 rounded-full flex items-center justify-center font-mono text-xs font-medium text-white"
+                        style={{ backgroundColor: i === 0 ? 'var(--trail)' : 'var(--waypoint)' }}
+                      >
+                        {i + 1}
+                      </div>
+                      <div
+                        className="rounded-lg border p-4"
+                        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+                      >
+                        <div className="flex items-baseline justify-between mb-2 gap-3">
+                          <h3 className="font-display text-lg" style={{ color: 'var(--ink)' }}>
+                            {phase.phase_name}
+                          </h3>
+                          <span
+                            className="font-mono text-xs px-2 py-1 rounded whitespace-nowrap"
+                            style={{ backgroundColor: 'var(--waypoint-light)', color: 'var(--waypoint)' }}
+                          >
+                            ~{phase.estimated_weeks} wks
+                          </span>
+                        </div>
+                        <p className="text-sm mb-3" style={{ color: 'var(--muted)' }}>
+                          {phase.reasoning}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {phase.skills.map((s, j) => (
+                            <span
+                              key={j}
+                              className="text-xs px-2 py-1 rounded-full"
+                              style={{ backgroundColor: 'var(--trail-light)', color: 'var(--trail)' }}
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {roadmap.length === 0 && aiPhases.length === 0 && (
+            <div
+              className="h-full flex items-center justify-center rounded-lg border border-dashed text-sm"
+              style={{ borderColor: 'var(--border)', color: 'var(--muted)', minHeight: 240 }}
+            >
+              Your roadmap will appear here.
+            </div>
+          )}
+        </div>
+      </div>
     </main>
   )
 }
